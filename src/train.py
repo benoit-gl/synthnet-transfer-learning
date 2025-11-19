@@ -1,5 +1,11 @@
 """The main run script."""
 
+import re
+import warnings
+
+# Filter the specific pkg_resources deprecation warning from lightning_fabric - show once, then suppress
+warnings.filterwarnings("once", category=UserWarning, message=re.compile(r"pkg_resources is deprecated as an API.*"))
+
 from typing import List, Optional, Tuple
 
 import hydra
