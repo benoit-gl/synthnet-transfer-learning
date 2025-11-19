@@ -2,6 +2,7 @@ transformers~=4.29.1
 datasets~=2.12.0
 evaluate~=0.4.0
 
+setuptools<81  # Pin to avoid pkg_resources deprecation warning from lightning_fabric
 numpy~=1.23.5
 numba~=0.56.4
 scikit-learn~=1.2.2
