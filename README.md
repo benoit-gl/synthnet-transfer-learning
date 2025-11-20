@@ -34,6 +34,12 @@ pyenv shell synthnet-transfer-learning
 pip install -r requirements.txt
 ```
 
+## GPU Acceleration
+
+- The default trainer configuration (`configs/trainer/default.yaml`) now pins PyTorch Lightning to the CUDA accelerator with mixed precision for faster runs on a single GPU.
+- Install a CUDA-enabled build of PyTorch/torchvision that matches your driver (e.g. `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118`).
+- Need to run on CPU instead? Override via CLI: `python src/train.py trainer.accelerator=cpu trainer.precision=32-true`.
+
 ## Dataset Preparation
 
 ### Prepare VisDa-2017 Image Classification dataset for experiments
