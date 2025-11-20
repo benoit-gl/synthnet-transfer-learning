@@ -9,8 +9,10 @@ from torchmetrics import MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
 from transformers import AutoFeatureExtractor, AutoModelForImageClassification
 
-from utils.callbacks import _ensure_wandb_media_directory
+from utils.callbacks import ensure_wandb_test_logging_ready
 import utils
+
+log = utils.get_pylogger(__name__)
 
 
 class VitModule(LightningModule):
@@ -156,10 +158,8 @@ class VitModule(LightningModule):
         return {"loss": loss, "preds": preds, "targets": targets}
 
     def on_test_epoch_end(self):
-        # Ensure wandb media directories exist before logging
-        _ensure_wandb_media_directory(self.trainer)
-        
-        log = utils.get_pylogger(__name__)
+        if not ensure_wandb_test_logging_ready(self, module_log=log):
+            return
         
         # Log confusion matrix top1 class accuracies
         class_names = list(self.trainer.datamodule.label2idx.keys())

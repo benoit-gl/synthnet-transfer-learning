@@ -14,8 +14,10 @@ from tllib.alignment.cdan import ConditionalDomainAdversarialLoss
 from tllib.modules.domain_discriminator import DomainDiscriminator
 from tllib.self_training.mcc import MinimumClassConfusionLoss
 
-from utils.callbacks import _ensure_wandb_media_directory
+from utils.callbacks import ensure_wandb_test_logging_ready
 import utils
+
+log = utils.get_pylogger(__name__)
 
 
 class VitCDANModule(LightningModule):
@@ -219,10 +221,8 @@ class VitCDANModule(LightningModule):
         return {"loss": loss, "preds": preds, "targets": targets}
 
     def on_test_epoch_end(self):
-        # Ensure wandb media directories exist before logging
-        _ensure_wandb_media_directory(self.trainer)
-        
-        log = utils.get_pylogger(__name__)
+        if not ensure_wandb_test_logging_ready(self, module_log=log):
+            return
         
         class_names = list(self.trainer.datamodule.label2idx.keys())
         cm = confusion_matrix(

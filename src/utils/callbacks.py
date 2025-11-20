@@ -80,13 +80,16 @@ def _ensure_wandb_media_directory(trainer: "Trainer") -> None:
                     os.makedirs(table_dir, exist_ok=True)
                     # Also create common namespace subdirectories that wandb might use
                     # (e.g., 'test/' from 'test/acc_per_class' namespace)
-                    table_test_dir = os.path.join(table_dir, 'test')
+                    # Normalize path to handle Windows separator issues
+                    table_test_dir = os.path.normpath(os.path.join(table_dir, 'test'))
                     os.makedirs(table_test_dir, exist_ok=True)
                     # Verify the directories actually exist
                     if not os.path.isdir(images_dir):
                         raise RuntimeError(f"wandb images directory {images_dir} was not created successfully")
                     if not os.path.isdir(table_dir):
                         raise RuntimeError(f"wandb table directory {table_dir} was not created successfully")
+                    if not os.path.isdir(table_test_dir):
+                        raise RuntimeError(f"wandb table test directory {table_test_dir} was not created successfully")
                     return  # Successfully created or already exists
                 except (OSError, PermissionError) as e:
                     raise OSError(f"Failed to create wandb media directory structure (base: {wandb_dir}): {e}") from e
@@ -96,6 +99,35 @@ def _ensure_wandb_media_directory(trainer: "Trainer") -> None:
     
     # If no WandbLogger was found
     raise RuntimeError("Cannot ensure wandb media directory: no WandbLogger found")
+
+
+def ensure_wandb_test_logging_ready(pl_module, module_log=None) -> bool:
+    """Shared guard logic for modules that log wandb tables at test time."""
+    logger = module_log or log
+
+    if not hasattr(pl_module, "trainer") or pl_module.trainer is None:
+        logger.warning("Trainer not available, skipping wandb table logging")
+        return False
+
+    if not hasattr(pl_module, "logger") or pl_module.logger is None:
+        logger.warning("Logger not available, skipping wandb table logging")
+        return False
+
+    if not hasattr(pl_module, "targets_test_all") or pl_module.targets_test_all is None:
+        logger.warning("Test targets not available, skipping wandb table logging")
+        return False
+
+    if not hasattr(pl_module, "preds_test_all") or pl_module.preds_test_all is None:
+        logger.warning("Test predictions not available, skipping wandb table logging")
+        return False
+
+    try:
+        _ensure_wandb_media_directory(pl_module.trainer)
+    except (RuntimeError, OSError) as e:
+        logger.warning(f"Failed to ensure wandb media directories: {e}. Skipping table logging.")
+        return False
+
+    return True
 
 
 class FreezeAllButLast(BaseFinetuning):
