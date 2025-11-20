@@ -9,6 +9,9 @@ from torchmetrics import MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
 from transformers import AutoFeatureExtractor, AutoModelForImageClassification
 
+from utils.callbacks import _ensure_wandb_media_directory
+import utils
+
 
 class VitModule(LightningModule):
     """Example of LightningModule for Vision Transformer Image classification.
@@ -153,6 +156,11 @@ class VitModule(LightningModule):
         return {"loss": loss, "preds": preds, "targets": targets}
 
     def on_test_epoch_end(self):
+        # Ensure wandb media directories exist before logging
+        _ensure_wandb_media_directory(self.trainer)
+        
+        log = utils.get_pylogger(__name__)
+        
         # Log confusion matrix top1 class accuracies
         class_names = list(self.trainer.datamodule.label2idx.keys())
         cm = confusion_matrix(
@@ -165,27 +173,34 @@ class VitModule(LightningModule):
         table = wandb.Table(data=data, columns=["class_name", "acc"])
 
         # Accuracy Per class Barchart
-        self.logger.experiment.log(
-            {
-                "test/acc_per_class": wandb.plot.bar(
-                    table,
-                    "class_name",
-                    "acc",
-                    title="Per Class Accuracy",
-                )
-            }
-        )
+        try:
+            self.logger.experiment.log(
+                {
+                    "test/acc_per_class": wandb.plot.bar(
+                        table,
+                        "class_name",
+                        "acc",
+                        title="Per Class Accuracy",
+                    )
+                }
+            )
+        except (FileNotFoundError, OSError) as e:
+            log.warning(f"Failed to log test accuracy per class: {e}")
+        
         # Confusion Matrix (normalized on trues)
-        self.logger.experiment.log(
-            {
-                "test/confmat": wandb.sklearn.plot_confusion_matrix(
-                    y_true=self.targets_test_all.cpu(),
-                    y_pred=self.preds_test_all.cpu(),
-                    labels=class_names,
-                    normalize="true",
-                )
-            }
-        )
+        try:
+            self.logger.experiment.log(
+                {
+                    "test/confmat": wandb.sklearn.plot_confusion_matrix(
+                        y_true=self.targets_test_all.cpu(),
+                        y_pred=self.preds_test_all.cpu(),
+                        labels=class_names,
+                        normalize="true",
+                    )
+                }
+            )
+        except (FileNotFoundError, OSError) as e:
+            log.warning(f"Failed to log test confusion matrix: {e}")
         # # TSNE // Embedding projector
         # tsne_cols = np.arange(self.cls_tokens_all.size(dim=1)).astype(str).tolist()
         # tsne_cols.insert(0, "target")

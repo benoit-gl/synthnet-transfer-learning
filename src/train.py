@@ -1,10 +1,13 @@
 """The main run script."""
 
-import re
 import warnings
 
-# Filter the specific pkg_resources deprecation warning from lightning_fabric - show once, then suppress
-warnings.filterwarnings("once", category=UserWarning, message=re.compile(r"pkg_resources is deprecated as an API.*"))
+# Filter the specific pkg_resources deprecation warning - show once, then suppress
+# This warning appears from multiple modules (lightning_fabric, wandb, etc.)
+# Note: In Python 3.10.4, message parameter uses substring matching (not regex)
+# The filter must be set before any imports that trigger the warning
+# Using "ignore" to completely suppress since it's from third-party libraries
+warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated")
 
 from typing import List, Optional, Tuple
 

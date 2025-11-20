@@ -29,14 +29,18 @@ def _ensure_wandb_media_directory(trainer: "Trainer") -> None:
     
     Args:
         trainer: PyTorch Lightning Trainer instance
+    
+    Raises:
+        RuntimeError: If the directory cannot be created or determined
+        OSError: If directory creation fails due to filesystem errors
     """
     # Only apply this workaround on Windows
     if platform.system() != 'Windows':
-        return
+        return  # On non-Windows, assume directory handling works
     
     # Handle case where no logger is configured
     if not trainer.logger:
-        return
+        raise RuntimeError("Cannot ensure wandb media directory: no logger configured")
     
     loggers = trainer.logger if isinstance(trainer.logger, list) else [trainer.logger]
     for logger in loggers:
@@ -44,20 +48,54 @@ def _ensure_wandb_media_directory(trainer: "Trainer") -> None:
         if isinstance(logger, WandbLogger):
             wandb_dir = None
             # Try to get wandb directory from logger
-            if hasattr(logger, 'experiment') and hasattr(logger.experiment, 'dir'):
-                wandb_dir = logger.experiment.dir
+            if hasattr(logger, 'experiment') and logger.experiment and hasattr(logger.experiment, 'dir'):
+                try:
+                    wandb_dir = logger.experiment.dir
+                except (AttributeError, RuntimeError) as e:
+                    log.debug(f"Could not get wandb dir from logger.experiment: {e}")
+            
             # Alternative: check wandb.run.dir if available
-            if not wandb_dir and hasattr(wandb, 'run') and wandb.run and hasattr(wandb.run, 'dir'):
-                wandb_dir = wandb.run.dir
+            if not wandb_dir and hasattr(wandb, 'run') and wandb.run:
+                try:
+                    if hasattr(wandb.run, 'dir'):
+                        wandb_dir = wandb.run.dir
+                except (AttributeError, RuntimeError) as e:
+                    log.debug(f"Could not get wandb dir from wandb.run: {e}")
             
             # Create directory structure if we found a valid wandb directory
-            if wandb_dir and isinstance(wandb_dir, str):
-                media_dir = os.path.join(wandb_dir, 'files', 'media', 'images')
+            if wandb_dir and isinstance(wandb_dir, str) and wandb_dir.strip():
+                # Normalize the path to handle any issues
+                wandb_dir = os.path.normpath(wandb_dir)
                 try:
-                    os.makedirs(media_dir, exist_ok=True)
+                    # First ensure the wandb run directory itself exists
+                    os.makedirs(wandb_dir, exist_ok=True)
+                    # Then create all parent directories for media
+                    os.makedirs(os.path.join(wandb_dir, 'files'), exist_ok=True)
+                    media_base = os.path.join(wandb_dir, 'files', 'media')
+                    os.makedirs(media_base, exist_ok=True)
+                    # Create both images and table directories
+                    images_dir = os.path.join(media_base, 'images')
+                    table_dir = os.path.join(media_base, 'table')
+                    os.makedirs(images_dir, exist_ok=True)
+                    os.makedirs(table_dir, exist_ok=True)
+                    # Also create common namespace subdirectories that wandb might use
+                    # (e.g., 'test/' from 'test/acc_per_class' namespace)
+                    table_test_dir = os.path.join(table_dir, 'test')
+                    os.makedirs(table_test_dir, exist_ok=True)
+                    # Verify the directories actually exist
+                    if not os.path.isdir(images_dir):
+                        raise RuntimeError(f"wandb images directory {images_dir} was not created successfully")
+                    if not os.path.isdir(table_dir):
+                        raise RuntimeError(f"wandb table directory {table_dir} was not created successfully")
+                    return  # Successfully created or already exists
                 except (OSError, PermissionError) as e:
-                    log.warning(f"Failed to create wandb media directory {media_dir}: {e}")
-                return  # Successfully created or already exists, exit early
+                    raise OSError(f"Failed to create wandb media directory structure (base: {wandb_dir}): {e}") from e
+            
+            # If we found a WandbLogger but couldn't get the directory, raise an error
+            raise RuntimeError("Could not determine wandb directory for media files")
+    
+    # If no WandbLogger was found
+    raise RuntimeError("Cannot ensure wandb media directory: no WandbLogger found")
 
 
 class FreezeAllButLast(BaseFinetuning):
@@ -104,9 +142,9 @@ class LogPredictionSamplesCallback(Callback):
 
         # Let's log 20 sample image predictions from the first batch
         if batch_idx == 0:
+            _ensure_wandb_media_directory(trainer)
+            
             try:
-                _ensure_wandb_media_directory(trainer)
-                
                 x, y = batch
                 images = [img for img in x[: self.n]]
                 idx2label = trainer.datamodule.idx2label
@@ -136,9 +174,9 @@ class LogTrainingSamplesCallback(Callback):
         samples = next(iter(loader))
         labels = [dm.idx2label[label_i.item()] for label_i in samples[1]]
 
+        _ensure_wandb_media_directory(trainer)
+        
         try:
-            _ensure_wandb_media_directory(trainer)
-            
             trainer.logger.experiment.log(
                 {
                     "transformed_training_samples": [
@@ -161,9 +199,9 @@ class LogTrainingSamplesMultiDataParallelLoaderCallback(Callback):
         dm = trainer.datamodule
         # TODO: Probably needs fix after MultiConcatDataLoader is implemented
         
+        _ensure_wandb_media_directory(trainer)
+        
         try:
-            _ensure_wandb_media_directory(trainer)
-            
             loader = DataLoader(dataset=dm.train_src[0], batch_size=self.n, num_workers=0, shuffle=True)
             samples = next(iter(loader))
             labels = [dm.idx2label[label_i.item()] for label_i in samples[1]]
