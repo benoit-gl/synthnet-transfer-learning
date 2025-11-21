@@ -9,6 +9,10 @@ import warnings
 # Using "ignore" to completely suppress since it's from third-party libraries
 warnings.filterwarnings("ignore", category=UserWarning, message="pkg_resources is deprecated")
 
+import torch
+if torch.cuda.is_available():
+    torch.set_float32_matmul_precision("high")
+
 from typing import List, Optional, Tuple
 
 import hydra
