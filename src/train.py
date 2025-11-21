@@ -13,7 +13,6 @@ from typing import List, Optional, Tuple
 
 import hydra
 import pytorch_lightning as pl
-import torch
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning import Callback, LightningDataModule, LightningModule, Trainer
 from pytorch_lightning.loggers import Logger
@@ -48,20 +47,6 @@ def train(cfg: DictConfig):
 
     log.info(f"Instantiating trainer <{cfg.trainer._target_}>")
     trainer: Trainer = hydra.utils.instantiate(cfg.trainer, callbacks=callbacks, logger=logger)
-    
-    # Log device information
-    log.info("=" * 60)
-    log.info("DEVICE INFORMATION:")
-    log.info(f"  CUDA available: {torch.cuda.is_available()}")
-    if torch.cuda.is_available():
-        log.info(f"  CUDA device count: {torch.cuda.device_count()}")
-        log.info(f"  Current CUDA device: {torch.cuda.current_device()}")
-        log.info(f"  CUDA device name: {torch.cuda.get_device_name(0)}")
-    log.info(f"  Trainer accelerator: {trainer.accelerator}")
-    log.info(f"  Trainer num_devices: {trainer.num_devices}")
-    log.info(f"  Trainer strategy: {trainer.strategy}")
-    log.info(f"  Trainer precision: {trainer.precision}")
-    log.info("=" * 60)
 
     object_dict = {
         "cfg": cfg,
@@ -78,10 +63,6 @@ def train(cfg: DictConfig):
     if cfg.get("train"):
         # log.info("Validating loaded model before training!")
         # trainer.validate(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
-        # Verify model is on correct device
-        if torch.cuda.is_available():
-            next_param = next(model.parameters())
-            log.info(f"Model device: {next_param.device} (CUDA enabled: {next_param.device.type == 'cuda'})")
         log.info("Starting training!")
         trainer.fit(model=model, datamodule=datamodule, ckpt_path=cfg.get("ckpt_path"))
 
@@ -89,15 +70,6 @@ def train(cfg: DictConfig):
 
     if cfg.get("test"):
         log.info("Starting testing!")
-        # Clear CUDA cache before testing to free up memory from training
-        if torch.cuda.is_available():
-            log.info("Clearing CUDA cache before testing...")
-            torch.cuda.empty_cache()
-            # Log memory stats for debugging
-            if torch.cuda.is_available():
-                allocated = torch.cuda.memory_allocated(0) / 1024**3  # GB
-                reserved = torch.cuda.memory_reserved(0) / 1024**3  # GB
-                log.info(f"GPU memory - Allocated: {allocated:.2f} GB, Reserved: {reserved:.2f} GB")
         ckpt_path = trainer.checkpoint_callback.best_model_path
         if ckpt_path == "":
             log.warning("Best ckpt not found! Using current weights for testing...")

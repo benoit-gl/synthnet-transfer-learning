@@ -4,9 +4,4 @@
 # Look at the above link for more detailed information.
 rich_progress_bar:
   _target_: pytorch_lightning.callbacks.RichProgressBar
-  # Leave progress bar visible to prevent conflicts with log messages
-  # When false, progress bar clears and can cause log messages to be overwritten
-  leave: true
-  # Reduce refresh rate to minimize conflicts with logging output
-  # This reduces how often the progress bar updates, giving logs more time to display
-  refresh_rate: 1
+  
