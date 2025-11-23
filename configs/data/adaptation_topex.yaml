@@ -1,8 +1,8 @@
 _target_: datamodules.generic_adaptation_dm.GenericAdaptationDM
-train_src_dirs: [data/topex-printer/train]
-train_target_dirs: [data/topex-printer/test]
-val_dirs: [data/topex-printer/test]
-test_dirs: [data/topex-printer/test]
+train_src_dirs: [data/topex-printer/train/rgb]
+train_target_dirs: [data/topex-printer/test/rgb]
+val_dirs: [data/topex-printer/test/rgb]
+test_dirs: [data/topex-printer/test/rgb]
 batch_size: 32
 num_workers: 4
 toy: false
