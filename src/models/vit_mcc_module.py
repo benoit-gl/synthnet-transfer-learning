@@ -11,6 +11,7 @@ from torchmetrics.classification.accuracy import Accuracy
 from transformers import AutoFeatureExtractor, AutoModelForImageClassification
 
 from tllib.self_training.mcc import MinimumClassConfusionLoss
+from utils.logging_utils import get_wandb_logger
 
 
 class VitMCCModule(LightningModule):
@@ -186,6 +187,11 @@ class VitMCCModule(LightningModule):
         return {"loss": loss, "preds": preds, "targets": targets}
 
     def on_test_epoch_end(self):
+        wandb_logger = get_wandb_logger(self)
+        if wandb_logger is None:
+            # No wandb logger available, skip wandb-specific logging
+            return
+        
         class_names = list(self.trainer.datamodule.label2idx.keys())
         cm = confusion_matrix(
             y_true=self.targets_test_all.cpu(),
@@ -197,7 +203,7 @@ class VitMCCModule(LightningModule):
         table = wandb.Table(data=data, columns=["class_name", "acc"])
 
         # Accuracy Per class Barchart
-        self.logger.experiment.log(
+        wandb_logger.experiment.log(
             {
                 "test/acc_per_class": wandb.plot.bar(
                     table,
@@ -208,7 +214,7 @@ class VitMCCModule(LightningModule):
             }
         )
         # Confusion Matrix (normalized on trues)
-        self.logger.experiment.log(
+        wandb_logger.experiment.log(
             {
                 "test/confmat": wandb.sklearn.plot_confusion_matrix(
                     y_true=self.targets_test_all.cpu(),

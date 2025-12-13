@@ -4,35 +4,13 @@ import numpy as np
 import wandb
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.callbacks.finetuning import BaseFinetuning
-from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
 import utils
+from utils.logging_utils import get_wandb_logger
 from utils.transforms import UnNormalize
 
 log = utils.get_pylogger(__name__)
-
-
-def get_wandb_logger(trainer):
-    """Get the WandB logger from the trainer, if available.
-    
-    Handles both single logger and multiple loggers (e.g., when using many_loggers).
-    Returns None if no WandB logger is found.
-    """
-    if trainer.logger is None:
-        return None
-    
-    # Check if it's a single WandB logger
-    if isinstance(trainer.logger, WandbLogger):
-        return trainer.logger
-    
-    # Check if trainer has multiple loggers
-    if hasattr(trainer, 'loggers'):
-        for logger in trainer.loggers:
-            if isinstance(logger, WandbLogger):
-                return logger
-    
-    return None
 
 
 class FreezeAllButLast(BaseFinetuning):
