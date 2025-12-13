@@ -54,7 +54,7 @@ class VitMCCModule(LightningModule):
             output_attentions=True,
         )
         if fine_tuning_checkpoint:
-            weights = torch.load(fine_tuning_checkpoint)["state_dict"]
+            weights = torch.load(fine_tuning_checkpoint, weights_only=False)["state_dict"]
             weights_rn = OrderedDict()
             for layername in weights.keys():
                 # Checkpoint layers are names with prepended "net.", which differs from vit layer names we get from "from_pretrained"

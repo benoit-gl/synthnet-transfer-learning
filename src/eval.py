@@ -1,9 +1,16 @@
+import functools
 from typing import List, Tuple
 
 import hydra
+import torch
 from omegaconf import DictConfig
 from pytorch_lightning import LightningDataModule, LightningModule, Trainer
 from pytorch_lightning.loggers import Logger
+
+# Fix for PyTorch 2.7+ checkpoint loading: allow functools.partial in checkpoints
+# This is needed because PyTorch 2.7 changed torch.load default to weights_only=True
+# and functools.partial is used in PyTorch Lightning checkpoints
+torch.serialization.add_safe_globals([functools.partial])
 
 import utils
 

@@ -1,6 +1,13 @@
 """The main run script."""
 
+import functools
 import warnings
+
+# Fix for PyTorch 2.7+ checkpoint loading: allow functools.partial in checkpoints
+# This is needed because PyTorch 2.7 changed torch.load default to weights_only=True
+# and functools.partial is used in PyTorch Lightning checkpoints
+import torch
+torch.serialization.add_safe_globals([functools.partial])
 
 # Filter the specific pkg_resources deprecation warning - show once, then suppress
 # This warning appears from multiple modules (lightning_fabric, wandb, etc.)
