@@ -4,12 +4,35 @@ import numpy as np
 import wandb
 from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.callbacks.finetuning import BaseFinetuning
+from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
 import utils
 from utils.transforms import UnNormalize
 
 log = utils.get_pylogger(__name__)
+
+
+def get_wandb_logger(trainer):
+    """Get the WandB logger from the trainer, if available.
+    
+    Handles both single logger and multiple loggers (e.g., when using many_loggers).
+    Returns None if no WandB logger is found.
+    """
+    if trainer.logger is None:
+        return None
+    
+    # Check if it's a single WandB logger
+    if isinstance(trainer.logger, WandbLogger):
+        return trainer.logger
+    
+    # Check if trainer has multiple loggers
+    if hasattr(trainer, 'loggers'):
+        for logger in trainer.loggers:
+            if isinstance(logger, WandbLogger):
+                return logger
+    
+    return None
 
 
 class FreezeAllButLast(BaseFinetuning):
@@ -54,8 +77,13 @@ class LogPredictionSamplesCallback(Callback):
         # `outputs` comes from `LightningModule.validation_step`
         # which corresponds to our model predictions in this case
 
-        # Let's log 20 sample image predictions from the first batch
+        # Let's log sample image predictions from the first batch
         if batch_idx == 0:
+            wandb_logger = get_wandb_logger(trainer)
+            if wandb_logger is None:
+                # No wandb logger available, skip image logging
+                return super().on_validation_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+            
             x, y = batch
             images = [img for img in x[: self.n]]
             idx2label = trainer.datamodule.idx2label
@@ -63,7 +91,7 @@ class LogPredictionSamplesCallback(Callback):
                 f"gt: {idx2label[y_i.item()]} | pred: {idx2label[pred_i.item()]}"
                 for y_i, pred_i in zip(y[: self.n], outputs["preds"][: self.n])
             ]
-            trainer.logger.experiment.log(
+            wandb_logger.experiment.log(
                 {"prediction_samples": [wandb.Image(img, caption=cap) for img, cap in zip(images, captions)]},
                 commit=False,
             )
@@ -76,6 +104,11 @@ class LogTrainingSamplesCallback(Callback):
         self.n = n
 
     def on_train_start(self, trainer, pl_module) -> None:
+        wandb_logger = get_wandb_logger(trainer)
+        if wandb_logger is None:
+            # No wandb logger available, skip image logging
+            return super().on_train_start(trainer, pl_module)
+        
         dm = trainer.datamodule
         # original_images = [dm.train[i][0] for i in range(0, self.n)]
         # labels = [dm.idx2label[dm.train[i][1]] for i in range(0, self.n)]
@@ -83,7 +116,7 @@ class LogTrainingSamplesCallback(Callback):
         samples = next(iter(loader))
         labels = [dm.idx2label[label_i.item()] for label_i in samples[1]]
 
-        trainer.logger.experiment.log(
+        wandb_logger.experiment.log(
             {
                 "transformed_training_samples": [
                     wandb.Image(img, caption=cap) for img, cap in zip(list(samples[0]), labels)
@@ -100,12 +133,17 @@ class LogTrainingSamplesMultiDataParallelLoaderCallback(Callback):
         self.n = n
 
     def on_train_start(self, trainer, pl_module) -> None:
+        wandb_logger = get_wandb_logger(trainer)
+        if wandb_logger is None:
+            # No wandb logger available, skip image logging
+            return super().on_train_start(trainer, pl_module)
+        
         dm = trainer.datamodule
         # TODO: Probably needs fix after MultiConcatDataLoader is implemented
         loader = DataLoader(dataset=dm.train_src[0], batch_size=self.n, num_workers=0, shuffle=True)
         samples = next(iter(loader))
         labels = [dm.idx2label[label_i.item()] for label_i in samples[1]]
-        trainer.logger.experiment.log(
+        wandb_logger.experiment.log(
             {
                 "transformed_training_samples_source": [
                     wandb.Image(img, caption=cap) for img, cap in zip(list(samples[0]), labels)
@@ -117,7 +155,7 @@ class LogTrainingSamplesMultiDataParallelLoaderCallback(Callback):
         loader = DataLoader(dataset=dm.train_target[0], batch_size=self.n, num_workers=0, shuffle=True)
         samples = next(iter(loader))
         labels = [dm.idx2label[label_i.item()] for label_i in samples[1]]
-        trainer.logger.experiment.log(
+        wandb_logger.experiment.log(
             {
                 "transformed_training_samples_target": [
                     wandb.Image(img, caption=cap) for img, cap in zip(list(samples[0]), labels)
