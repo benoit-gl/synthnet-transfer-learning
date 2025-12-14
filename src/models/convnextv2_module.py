@@ -2,12 +2,15 @@ from typing import Any, List, Optional
 
 import numpy
 import torch
+import wandb
 from pytorch_lightning import LightningModule
+from sklearn.metrics import confusion_matrix
 from torchmetrics import MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
 from transformers import AutoModelForImageClassification
 
 from models import load_checkpoint_weights
+from utils.logging_utils import get_wandb_logger
 
 
 class ConvNextV2Module(LightningModule):
@@ -128,6 +131,10 @@ class ConvNextV2Module(LightningModule):
         # otherwise metric would be reset by lightning after each epoch
         self.log("val/acc_best", self.val_acc_best.compute(), prog_bar=True)
 
+    def on_test_epoch_start(self):
+        self.preds_test_all = None
+        self.targets_test_all = None
+
     def test_step(self, batch: Any, batch_idx: int):
         loss, preds, targets = self.model_step(batch)
 
@@ -137,10 +144,59 @@ class ConvNextV2Module(LightningModule):
         self.log("test/loss", self.test_loss, on_step=False, on_epoch=True, prog_bar=True)
         self.log("test/acc", self.test_acc, on_step=False, on_epoch=True, prog_bar=True)
 
+        self.preds_test_all = (
+            torch.cat((self.preds_test_all, preds), 0) if torch.is_tensor(self.preds_test_all) else preds
+        )
+        self.targets_test_all = (
+            torch.cat((self.targets_test_all, targets), 0) if torch.is_tensor(self.targets_test_all) else targets
+        )
+
         return {"loss": loss, "preds": preds, "targets": targets}
 
     def on_test_epoch_end(self):
-        pass
+        # Log confusion matrix top1 class accuracies (paper metric: mean class-wise acc)
+        wandb_logger = get_wandb_logger(self)
+        if wandb_logger is None:
+            # No wandb logger available, skip wandb-specific logging
+            return
+
+        # Prefer datamodule labels if available; otherwise fall back to numeric labels.
+        if getattr(self.trainer, "datamodule", None) is not None and hasattr(self.trainer.datamodule, "label2idx"):
+            class_names = list(self.trainer.datamodule.label2idx.keys())
+        else:
+            class_names = [str(i) for i in range(self.hparams.num_classes)]
+
+        cm = confusion_matrix(
+            y_true=self.targets_test_all.cpu(),
+            y_pred=self.preds_test_all.cpu(),
+            normalize="true",
+        )
+        class_acc = cm.diagonal()
+        data = [[name, acc] for (name, acc) in zip(class_names, class_acc)]
+        table = wandb.Table(data=data, columns=["class_name", "acc"])
+
+        # Accuracy Per class Barchart (creates the table artifact we use offline)
+        wandb_logger.experiment.log(
+            {
+                "test/acc_per_class": wandb.plot.bar(
+                    table,
+                    "class_name",
+                    "acc",
+                    title="Per Class Accuracy",
+                )
+            }
+        )
+        # Confusion Matrix (normalized on trues)
+        wandb_logger.experiment.log(
+            {
+                "test/confmat": wandb.sklearn.plot_confusion_matrix(
+                    y_true=self.targets_test_all.cpu(),
+                    y_pred=self.preds_test_all.cpu(),
+                    labels=class_names,
+                    normalize="true",
+                )
+            }
+        )
 
     def configure_optimizers(self):
         """Choose what optimizers and learning-rate schedulers to use in your optimization. Normally you'd need one. But
