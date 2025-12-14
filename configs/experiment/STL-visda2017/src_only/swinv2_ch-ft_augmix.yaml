@@ -19,10 +19,9 @@ trainer:
   max_epochs: 20
 
 model:
-  # Load model from checkpoint (weights only)
-  _target_: models.swinv2_module.SwinV2Module.load_from_checkpoint
-  checkpoint_path: out/synthnet-transfer-learning-outputs/train/multiruns/STL-visda2017/swinv2_ch_sgd1e-3/2023-04-21_14-13-45/5/checkpoints/last.ckpt
   model_name: "microsoft/swinv2-base-patch4-window12-192-22k"
+  # Required: path to CH (classifier head) checkpoint for fine-tuning
+  checkpoint_path: ???
   optimizer:
     _target_: torch.optim.AdamW
     _partial_: true

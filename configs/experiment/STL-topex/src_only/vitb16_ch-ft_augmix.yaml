@@ -18,10 +18,9 @@ trainer:
   max_epochs: 20
 
 model:
-  # Load model from checkpoint (weights only)
-  _target_: models.vit_module.VitModule.load_from_checkpoint
-  checkpoint_path: out/synthnet-transfer-learning-outputs/train/multiruns/STL-topex/src_only/vitb16_ch_sgd1e-1.yaml/2023-06-09_10-41-30/1/checkpoints/epoch_011.ckpt
   model_name: "google/vit-base-patch16-224-in21k"
+  # Required: path to CH (classifier head) checkpoint for fine-tuning
+  checkpoint_path: ???
   optimizer:
     _target_: torch.optim.AdamW
     _partial_: true

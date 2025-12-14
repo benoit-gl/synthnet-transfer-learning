@@ -1,11 +1,13 @@
-from typing import Any, List
+from typing import Any, List, Optional
 
 import numpy
 import torch
 from pytorch_lightning import LightningModule
 from torchmetrics import MaxMetric, MeanMetric
 from torchmetrics.classification.accuracy import Accuracy
-from transformers import AutoFeatureExtractor, AutoModelForImageClassification
+from transformers import AutoModelForImageClassification
+
+from models import load_checkpoint_weights
 
 
 class ConvNextV2Module(LightningModule):
@@ -29,6 +31,7 @@ class ConvNextV2Module(LightningModule):
         optimizer: torch.optim.Optimizer,
         num_classes: int,
         scheduler: torch.optim.lr_scheduler = None,
+        checkpoint_path: Optional[str] = None,
     ):
         super().__init__()
 
@@ -41,7 +44,10 @@ class ConvNextV2Module(LightningModule):
             num_labels=num_classes,
             ignore_mismatched_sizes=True,
         )
-        self.class_head = self.net.classifier
+
+        # Load pretrained weights for CH-FT (classifier head fine-tune) workflow
+        if checkpoint_path:
+            load_checkpoint_weights(self.net, checkpoint_path)
 
         # loss function
         self.criterion = torch.nn.CrossEntropyLoss()

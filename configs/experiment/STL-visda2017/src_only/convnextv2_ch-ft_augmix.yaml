@@ -25,10 +25,9 @@ trainer:
   max_epochs: 20
 
 model:
-  # Load model from checkpoint (weights only)
-  _target_: models.convnextv2_module.ConvNextV2Module.load_from_checkpoint
-  checkpoint_path: out/synthnet-transfer-learning-outputs/train/multiruns/STL-visda2017/convnextv2_ch_sgd1e-3/2023-04-21_14-13-45/8/checkpoints/last.ckpt
   model_name: "facebook/convnextv2-base-22k-224"
+  # Required: path to CH (classifier head) checkpoint for fine-tuning
+  checkpoint_path: ???
   optimizer:
     _target_: torch.optim.AdamW
     _partial_: true
