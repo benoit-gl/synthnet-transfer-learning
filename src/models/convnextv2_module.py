@@ -175,6 +175,16 @@ class ConvNextV2Module(LightningModule):
         data = [[name, acc] for (name, acc) in zip(class_names, class_acc)]
         table = wandb.Table(data=data, columns=["class_name", "acc"])
 
+        # Explicitly log the underlying table artifact.
+        # Some W&B backends/versions may not always materialize `*_table` from plots, which
+        # breaks offline metric extraction for pinning.
+        wandb_logger.experiment.log(
+            {
+                "test/acc_per_class_table": table,
+                "test/mean_class_acc": float(numpy.mean(class_acc)) if len(class_acc) else 0.0,
+            }
+        )
+
         # Accuracy Per class Barchart (creates the table artifact we use offline)
         wandb_logger.experiment.log(
             {

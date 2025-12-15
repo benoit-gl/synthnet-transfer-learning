@@ -202,6 +202,14 @@ class VitMCCModule(LightningModule):
         data = [[name, acc] for (name, acc) in zip(class_names, class_acc)]
         table = wandb.Table(data=data, columns=["class_name", "acc"])
 
+        # Explicitly log the underlying table artifact + macro accuracy (paper metric).
+        wandb_logger.experiment.log(
+            {
+                "test/acc_per_class_table": table,
+                "test/mean_class_acc": float(np.mean(class_acc)) if len(class_acc) else 0.0,
+            }
+        )
+
         # Accuracy Per class Barchart
         wandb_logger.experiment.log(
             {
